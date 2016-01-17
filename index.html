@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Remember.js</title>
+	<style>
+		body,
+		html {
+			font-family: sans-serif;
+		}
+		header, footer {
+			text-align: center;
+			margin: auto;
+			text-transform: uppercase;
+			background-color: #f2f2f2;
+			width: 800px;
+		}
+		footer {
+			margin-top: 1em;
+		}
+		#gameCanvas {
+			margin: auto;
+			display: block;
+			border: 3px solid #232323;
+			border-radius: 2px;
+		}
+	</style>
+</head>
+
+<body>
+	<header>
+		<h1>Remember.js</h1>
+	</header>
+	<canvas id="gameCanvas" width="800" height="600"></canvas>
+	<script>
+		"use strict";
+		var canvas, context, gameMode, targetFrames, points, conDelta, conStop, conStart, level, lastPoint;
+
+		function distanceBetween(p, q) {
+			return Math.sqrt(Math.pow(p.x - q.x, 2) + Math.pow(p.y - q.y, 2));
+		}
+
+		function reset() {
+			conDelta = conStop = conStart = 0;
+			lastPoint = 0;
+			gameMode = "presentation";
+			generatePoints();
+		}
+
+		function init() {
+			canvas = document.querySelector("#gameCanvas");
+			canvas.addEventListener("click", click);
+			context = canvas.getContext("2d");
+
+			level = 0;
+			targetFrames = 20;
+			reset();
+
+			console.log("game init done");
+			update();
+		}
+
+
+
+		function render() {
+			context.fillStyle = "#d9d9ff";
+			context.fillRect(0, 0, 800, 600);
+
+			if (gameMode === "presentation") {
+				context.strokeStyle = "#000000";
+				context.beginPath();
+				for (let i = 0; i < conStart; i++) {
+					context.moveTo(points[i].x, points[i].y);
+					context.lineTo(points[i + 1].x, points[i + 1].y);
+				}
+				if (conDelta > 0) {
+					let start = points[conStart];
+					let stop = points[conStop];
+					let direction = {
+						x: (stop.x - start.x),
+						y: (stop.y - start.y),
+					};
+					let distance = Math.sqrt(Math.pow(direction.y, 2) + Math.pow(direction.x, 2));
+					let norm = {
+						x: direction.x * conDelta,
+						y: direction.y * conDelta,
+					};
+					context.moveTo(start.x, start.y);
+					context.lineTo(start.x + norm.x, start.y + norm.y);
+				}
+				context.stroke();
+				context.closePath();
+
+				context.strokeStyle = "#121212";
+				context.lineWidth = 3;
+				context.fillStyle = "#cc3300";
+				for (let i = 0; i < conStop; i++) {
+					let v = points[i];
+					context.beginPath();
+					context.arc(v.x, v.y, 25, 0, 2 * Math.PI, false);
+					context.fill();
+					context.stroke();
+					context.closePath();
+					context.fillStyle = "#878787";
+				}
+			} else if (gameMode === "remember") {
+				let conPoint = lastPoint;
+				if (conPoint < 0) {
+					conPoint = points.length - 1;
+				}
+
+				context.strokeStyle = "#000000";
+				context.beginPath();
+				for (let i = 0; i < conPoint; i++) {
+					let p = points[i],
+						q = points[i + 1];
+					context.moveTo(p.x, p.y);
+					context.lineTo(q.x, q.y);
+				}
+				context.stroke();
+				context.closePath();
+
+				context.strokeStyle = "#121212";
+				context.lineWidth = 3;
+				context.fillStyle = "#cc3300";
+				for (let i = 0; i < points.length; i++) {
+					let v = points[i];
+					context.strokeStyle = "#121212";
+					context.beginPath();
+					context.arc(v.x, v.y, 25, 0, 2 * Math.PI, false);
+					context.fill();
+					context.stroke();
+					context.closePath();
+
+					if (lastPoint == -2) {
+						context.fillStyle = "#aa9900";
+					} else if (lastPoint == -1 || i < conPoint) {
+						context.fillStyle = "#22aa00";
+					} else {
+						context.fillStyle = "#878787";
+					}
+				}
+				if (lastPoint < 0) {
+					context.fillStyle = "rgba(255,255,255,0.5)";
+					context.fillRect(0, 0, 800, 600);
+
+					context.fillStyle = "#000000";
+					context.font = "bold 24px sans-serif";
+					context.textAlign = "center";
+					if (lastPoint == -2) {
+						context.fillText("You lose!", 400, 300);
+					} else if (lastPoint == -1) {
+						context.fillText("You reach level " + (level+1) + "!", 400, 300);
+					}
+				}
+			}
+			context.fillStyle = "#000000";
+			context.font = "18px sans-serif";
+			context.textAlign = "left";
+			context.fillText("Level: " + level, 20, 28);
+		}
+
+		function generatePoints() {
+			let count = level + 5;
+			points = []
+
+			for (let i = 0; i < count; i++) {
+				let p = {
+					x: Math.round(Math.random() * 700) + 50,
+					y: Math.round(Math.random() * 500) + 50,
+				};
+				// check if they collide
+				let collision = false;
+				for (let j = 0; j < i && !collision; j++) {
+					let q = points[j];
+					if (distanceBetween(q, p) < 150) {
+						collision = true;
+					}
+				}
+
+				if (collision) {
+					i--;
+					continue;
+				}
+
+				points.push(p);
+			}
+
+			console.log(count, "points generated");
+		}
+
+		function startConAnim(start, stop) {
+			conDelta = 0.01;
+			conStart = start;
+			conStop = stop;
+
+			console.log("connection animation started from", start, "to", stop);
+		}
+
+		function update() {
+			if (gameMode === "presentation") {
+				if (conDelta > 0) {
+					conDelta += 1.0 / targetFrames;
+				}
+
+				if (conDelta > 1) {
+					conDelta = 0.01;
+					conStart = conStop;
+					conStop += 1;
+					if (conStop == points.length) {
+						conDelta = 0;
+					}
+				}
+			}
+
+			setTimeout(update, 1000 / targetFrames);
+			render();
+		}
+
+		function click(event) {
+			console.log(event);
+
+			if (gameMode === "presentation") {
+				if (conStop == 0) {
+					startConAnim(0, 1);
+				} else {
+					gameMode = "remember";
+					lastPoint = 0;
+				}
+			} else if (gameMode === "remember") {
+				if (lastPoint == -1) {
+					level++;
+					reset();
+				} else if (lastPoint == -2) {
+					if (level > 0) level--;
+					reset();
+				} else {
+					// find click circle
+					let collision = 0;
+					for (let i = 1; i < points.length; i++) {
+						let p = {
+							x: event.offsetX,
+							y: event.offsetY
+						};
+						let d = distanceBetween(p, points[i]);
+						if (d <= 50) {
+							collision = i;
+							break;
+						}
+					}
+
+					if (collision > lastPoint) {
+						if (collision == lastPoint + 1) {
+							lastPoint++;
+							if (lastPoint == points.length - 1) {
+								lastPoint = -1;
+							}
+						} else {
+							lastPoint = -2;
+						}
+					}
+				}
+			}
+		}
+
+		init();
+	</script>
+	<footer>
+		&copy; 2016 mooxmirror
+	</footer>
+</body>
+
+</html>
